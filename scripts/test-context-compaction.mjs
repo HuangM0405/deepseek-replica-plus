@@ -52,12 +52,14 @@ Object.defineProperty(globalThis, 'localStorage', { value: { getItem: () => null
 globalThis.cancelAnimationFrame = () => {}
 globalThis.__API_ORIGIN__ = 'https://mock.invalid'
 const { ApiError } = await import('../src/services/api/client.ts')
+const { chatBaseUrl, readChatConfig, resolveChatEndpoint } =
+  await import('../src/services/api/chatConfig.ts')
 const { isContextOverflow } = await import('../src/services/api/errors.ts')
 const { prepareHistoryContext, saveContextCheckpoint, textPrefixLength } =
   await import('../src/services/chat/context.ts')
 const { createContextSummarizer, includeContextSummary, summarizeCurrentInput } =
   await import('../src/services/chat/contextSummary.ts')
-const { setDraftText } = await import('../src/services/chat/drafts.ts')
+const { addDraftFiles, setDraftText } = await import('../src/services/chat/drafts.ts')
 const {
   continueReply,
   regenerateReply,
@@ -66,6 +68,7 @@ const {
   stopReply,
   useChatStore,
 } = await import('../src/services/chat/store.ts')
+const { readSessionFile } = await import('../src/services/chat/history/schema.ts')
 const { toSessionFile } = await import('../src/services/chat/history/toArchive.ts')
 const { sessions, files, loadFile } = await import(databaseMock)
 const { useSettings } = await import('../src/services/settings.ts')
@@ -374,6 +377,217 @@ const finish = async (id) => {
   return sessions.get(id)
 }
 
+const openAIStream = (...frames) =>
+  new Response(
+    frames
+      .map((frame) => `data: ${frame === '[DONE]' ? frame : JSON.stringify(frame)}\n\n`)
+      .join(''),
+    { headers: { 'Content-Type': 'text/event-stream' } }
+  )
+
+test('基础地址按协议拼接，兼容已保存的完整地址', () => {
+  assert.equal(
+    resolveChatEndpoint('https://api.deepseek.com', 'chat'),
+    'https://api.deepseek.com/chat/completions'
+  )
+  assert.equal(
+    resolveChatEndpoint('https://api.deepseek.com', 'responses'),
+    'https://api.deepseek.com/responses'
+  )
+  for (const base of [
+    'https://api.deepseek.com/anthropic',
+    'https://api.deepseek.com/anthropic/v1/',
+  ]) {
+    assert.equal(
+      resolveChatEndpoint(base, 'messages'),
+      'https://api.deepseek.com/anthropic/v1/messages'
+    )
+  }
+  assert.equal(
+    resolveChatEndpoint(' https://api.openai.com/v1/?route=blue ', 'responses'),
+    'https://api.openai.com/v1/responses?route=blue'
+  )
+  const old = readChatConfig(
+    JSON.stringify({
+      model: 'saved-model',
+      endpoint: 'https://provider.invalid/gateway',
+      format: 'chat',
+    })
+  )
+  assert.equal(
+    resolveChatEndpoint(chatBaseUrl(old.endpoint, old.format), old.format, old),
+    old.endpoint
+  )
+  assert.equal(
+    chatBaseUrl('https://api.openai.com/v1/chat/completions', 'chat'),
+    'https://api.openai.com/v1'
+  )
+  assert.equal(
+    resolveChatEndpoint('http://192.168.1.10:8080/v1', 'responses'),
+    'http://192.168.1.10:8080/v1/responses'
+  )
+  assert.equal(resolveChatEndpoint('ftp://provider.invalid/v1', 'responses'), null)
+  assert.deepEqual(
+    readChatConfig(JSON.stringify({ model: '', endpoint: '', format: 'responses', apiKey: 'old' })),
+    { model: '', endpoint: '', format: 'responses', apiKey: '' }
+  )
+})
+
+for (const [format, response, partsKey, tokenKey, pathname] of [
+  [
+    'messages',
+    () => stream('第二轮回答', 'stop_sequence'),
+    'messages',
+    'max_tokens',
+    '/v1/messages',
+  ],
+  [
+    'chat',
+    () =>
+      openAIStream(
+        { choices: [{ delta: { reasoning_content: '推理' } }] },
+        { choices: [{ delta: { content: '第二轮回答' } }] },
+        { choices: [{ delta: {}, finish_reason: 'stop' }] },
+        '[DONE]'
+      ),
+    'messages',
+    'max_completion_tokens',
+    '/v1/chat/completions',
+  ],
+  [
+    'responses',
+    () =>
+      openAIStream(
+        { type: 'response.output_text.delta', delta: '第二轮回答' },
+        { type: 'response.completed', response: { usage: { input_tokens: 10, output_tokens: 3 } } }
+      ),
+    'input',
+    'max_output_tokens',
+    '/v1/responses',
+  ],
+]) {
+  test(`自定义 ${format} 从聊天入口发送历史、附件和端点凭据`, async (t) => {
+    const previousConfig = useSettings.getState().chatConfig
+    t.after(() => useSettings.setState({ chatConfig: previousConfig }))
+    const id = seed([
+      user('prior-question', '第一轮问题'),
+      { ...reply('prior-reply', '第一轮回答'), latestReminder: '仅用于官方端点' },
+    ])
+    const endpoint = resolveChatEndpoint('http://provider.invalid/v1/', format)
+    useSettings.setState({
+      chatConfig: { model: 'provider-model', endpoint, format, apiKey: 'provider-key' },
+    })
+    const fetch = t.mock.method(globalThis, 'fetch', async (url, init) => {
+      assert.equal(url, 'http://provider.invalid' + pathname)
+      assert.equal(init.redirect, 'error')
+      if (format === 'messages') {
+        assert.equal(init.headers['x-api-key'], 'provider-key')
+        assert.equal(init.headers['anthropic-version'], '2023-06-01')
+      } else {
+        assert.equal(init.headers.Authorization, 'Bearer provider-key')
+      }
+      const body = JSON.parse(init.body)
+      assert.equal(body.model, 'provider-model')
+      assert.equal(body.stream, true)
+      assert.ok(body[tokenKey] > 0)
+      assert.deepEqual(
+        body[partsKey].map(({ role }) => role),
+        ['user', 'assistant', 'user']
+      )
+      assert.match(JSON.stringify(body[partsKey]), /第一轮回答/)
+      assert.match(JSON.stringify(body[partsKey]), /附件正文/)
+      assert.match(JSON.stringify(body[partsKey]), /第二轮问题/)
+      assert.doesNotMatch(JSON.stringify(body), /仅用于官方端点|safety_check|deepseek_web_search/)
+      return response()
+    })
+    assert.equal(addDraftFiles(id, [new File(['附件正文'], 'notes.txt')], null), null)
+    setDraftText(id, '第二轮问题')
+    assert.equal(sendMessage(id), true)
+    const session = await finish(id)
+    const answer = session.messages.at(-1)
+    assert.equal(fetch.mock.callCount(), 1)
+    assert.equal(answer.status, 'done')
+    assert.equal(answer.stopReason, 'end_turn')
+    assert.equal(answer.model, 'provider-model')
+    assert.equal(answer.blocks.find(({ type }) => type === 'text').text, '第二轮回答')
+    assert.equal(session.messages.at(-2).files[0].serverId, null)
+  })
+}
+
+for (const [format, path] of [
+  ['chat', '/chat/completions'],
+  ['responses', '/responses'],
+]) {
+  test(`只选择 ${format} 时使用官方地址、DeepSeek Key 和默认模型`, async (t) => {
+    const { chatConfig, thinking } = useSettings.getState()
+    t.after(() => useSettings.setState({ chatConfig, thinking }))
+    const id = seed([
+      user('prior-question', '这份文档', [documentFile('official', 'notes.txt', 100)]),
+      reply('prior-reply', '已收到'),
+    ])
+    useSettings.setState({
+      chatConfig: readChatConfig(JSON.stringify({ format, endpoint: '', model: '' })),
+      thinking: true,
+    })
+    const fetch = t.mock.method(globalThis, 'fetch', async (url, init) => {
+      assert.equal(url, 'https://mock.invalid' + path)
+      assert.equal(init.headers.Authorization, 'Bearer test-key')
+      const body = JSON.parse(init.body)
+      assert.equal(body.model, 'deepseek-flash')
+      assert.equal(body.stream, true)
+      assert.equal(body.safety_check.level, 'high')
+      assert.equal(
+        body.tools.some(({ type }) => type === 'deepseek_read_url'),
+        true
+      )
+      if (format === 'chat') {
+        assert.equal(body.thinking.type, 'enabled')
+        assert.ok(body.max_tokens > 0)
+        const content = body.messages.find(({ role }) => role === 'user').content
+        assert.deepEqual(content[0], { type: 'file', file_id: 'file-official' })
+        return openAIStream(
+          { choices: [{ delta: { reasoning_content: '推理' } }] },
+          { choices: [{ delta: { content: '官方回答' }, finish_reason: 'stop' }] },
+          '[DONE]'
+        )
+      }
+      assert.equal(body.reasoning.effort, 'high')
+      assert.ok(body.max_output_tokens > 0)
+      assert.deepEqual(body.input[0].content[0], { type: 'input_file', file_id: 'file-official' })
+      return openAIStream(
+        { type: 'response.reasoning_text.delta', delta: '推理' },
+        { type: 'response.output_text.delta', delta: '官方回答' },
+        { type: 'response.completed' }
+      )
+    })
+    setDraftText(id, '继续聊')
+    assert.equal(sendMessage(id), true)
+    const answer = (await finish(id)).messages.at(-1)
+    assert.equal(fetch.mock.callCount(), 1)
+    assert.equal(answer.status, 'done')
+    assert.equal(answer.blocks.find(({ type }) => type === 'thinking').thinking, '推理')
+    assert.equal(answer.blocks.find(({ type }) => type === 'text').text, '官方回答')
+  })
+}
+
+test('只设置模型时继续使用 DeepSeek 官方请求和已有 Key', async (t) => {
+  const previousConfig = useSettings.getState().chatConfig
+  t.after(() => useSettings.setState({ chatConfig: previousConfig }))
+  const id = seed([])
+  useSettings.setState({ chatConfig: { ...previousConfig, model: 'deepseek-v4-pro' } })
+  let requestedModel
+  respond = (body) => {
+    requestedModel = body.model
+    assert.ok(body.safety_check)
+    return stream('官方端点')
+  }
+  setDraftText(id, '模型配置')
+  assert.equal(sendMessage(id), true)
+  const session = await finish(id)
+  assert.equal(requestedModel, 'deepseek-v4-pro')
+  assert.equal(session.messages.at(-1).status, 'done')
+})
+
 test('发送入口在同一会话压缩重试，保存检查点和完整原始消息', async () => {
   const long = '旧历史' + '甲'.repeat(96_000)
   const recent = '这是近一轮原文'
@@ -407,6 +621,29 @@ test('发送入口在同一会话压缩重试，保存检查点和完整原始�
   const archive = JSON.stringify(toSessionFile(saved, assert.fail))
   assert.ok(archive.includes(long))
   assert.ok(!archive.includes('旧历史的记忆'))
+})
+
+test('导出保留有效用量，异常用量不会导致归档无法导入', () => {
+  const messages = [user('question', '问题'), reply('reply', '回答')]
+  const session = { id: 'export-test', title: '', createdAt: 0, updatedAt: 0, messages }
+  for (const [input, expected] of [
+    [10, 16],
+    [10.5, 0],
+    [-10, 0],
+    [undefined, 0],
+    [Number.MAX_SAFE_INTEGER, 0],
+  ]) {
+    messages[1].usage = {
+      input_tokens: input,
+      cache_creation_input_tokens: 1,
+      cache_read_input_tokens: 2,
+      output_tokens: 3,
+    }
+    const exported = JSON.parse(JSON.stringify(toSessionFile(session, assert.fail)))
+    const imported = readSessionFile(exported)
+    assert.equal(imported.messages[1].accumulated_token_usage, expected)
+    assert.deepEqual(imported.messages[1].fragments, [{ type: 'RESPONSE', content: '回答' }])
+  }
 })
 
 test('本地预算触发预压缩，首次正式请求保留近期原文和完整输出预算', async () => {
