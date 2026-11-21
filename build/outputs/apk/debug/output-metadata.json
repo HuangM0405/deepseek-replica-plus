@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "com.deepseek.plus.debug",
+  "variantName": "debug",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 44,
+      "versionName": "0.8",
+      "outputFile": "DeepSeekPlus-0.8-debug.apk"
+    }
+  ],
+  "elementType": "File",
+  "minSdkVersionForDexing": 26
+}
