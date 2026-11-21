@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DeepSeek 官方鲸鱼图标（来自源码新 android/app/src/main/res/drawable/launcher_whale.xml）。
+  自适应图标：白色底 + 居中的蓝色鲸鱼，与官方 App 的图标一致。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@android:color/white" />
+    <foreground android:drawable="@drawable/launcher_whale" />
+</adaptive-icon>
