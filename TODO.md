@@ -1,8 +1,8 @@
 # DeepSeek Plus · 待办
 
-> 本文件的条目来自上游 Simple Chat，对 DeepSeek Plus 0.8 仍然适用。
-> 0.8 自身的改动与验收见 [`docs/32-DeepSeekPlus-0.8设计与实现.md`](docs/32-DeepSeekPlus-0.8设计与实现.md)。
-> 0.8 仍未处理的项：正式 keystore、多厂商真机回归、面板让位键盘的残余下坠感。
+> 本文件的条目来自上游 Simple Chat，对 DeepSeek Plus 0.9 仍然适用。
+> 0.9 的上游移植与数据库升级见 [`docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md`](docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md)。
+> 仍未处理的项：正式 keystore、多厂商真机回归、面板让位键盘的残余下坠感。
 
 上游当前正式版为 v1.2.0。参阅 [发布说明](RELEASE_NOTES_v1.2.0.md)。
 

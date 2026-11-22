@@ -1,17 +1,17 @@
 # DeepSeek Plus
 
-> 基于 Jetpack Compose 的 Android AI 对话客户端：以 [Simple Chat](https://github.com/Pokanshuu/Simple-Chat) 1.2.3 为底座，视觉与交互参考 [DeepSeek App Replica](https://github.com/LiJiaHua1024/deepseek-app-replica)。
+> 基于 Jetpack Compose 的 Android AI 对话客户端：以 [Simple Chat](https://github.com/Pokanshuu/Simple-Chat) 1.2.4 为底座，视觉与交互参考 [DeepSeek App Replica](https://github.com/LiJiaHua1024/deepseek-app-replica)。
 
 **中文 | [English](README.en.md)**
 
-[![Version](https://img.shields.io/badge/version-0.8-blue)](https://github.com/HuangM0405/deepseek-replica-plus)
+[![Version](https://img.shields.io/badge/version-0.9-blue)](https://github.com/HuangM0405/deepseek-replica-plus)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## 简介
 
 面向长文本连续创作的 Android 端 AI 对话客户端。接入任意 OpenAI 兼容端点，历史记录本地存储，无账号体系与云同步。启用文件 API 后，上传文件同时保存在所配置的服务端。
 
-本仓库是 **DeepSeek Plus 0.8**：功能与架构来自 Simple Chat，界面动效、图标与若干部件参考官方客户端的观感。两者合并后的完整改动、动效体系与验收记录见 [`docs/32-DeepSeekPlus-0.8设计与实现.md`](docs/32-DeepSeekPlus-0.8设计与实现.md)。
+本仓库是 **DeepSeek Plus 0.9**：功能与架构跟随 Simple Chat 1.2.4，界面动效、鲸鱼图标与若干部件保持 DeepSeek Plus 的观感。v1.2.4 功能移植、数据库升级和保留边界见 [`docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md`](docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md)。
 
 适用场景：
 
@@ -52,10 +52,12 @@
 - **按住说话**：长按空输入框开始录音，松手后转写并发送，上滑后松手取消。DeepSeek 官方接入使用官方 ASR，单段最长 120 秒。其他接入使用设备可用的 Android 系统语音识别。
 - **朗读**：系统 TTS 逐条朗读回复，无需服务端与权限；设置里可切换音色（含试听），朗读前会剥掉代码块与表格。
 - **自动朗读**：顶栏新建对话左侧的喇叭开关，开启后朗读新完成的回复，关闭即停止；使用已选朗读音色。
+- **会话内生图**：在「＋ → 生成图片」直接创作、参考现有图片继续改图，或让支持工具调用的聊天模型按明确作图意图发起生成。可连接 OpenAI Images、Gemini、Qwen/DashScope，或使用 Responses 原生生图；支持画幅、停止、失败重试、重新生成和保存原图。
 - **API 配置管理**：独立保存多组地址、模型、协议与加密 Key，支持新建、复制、重命名、删除和一键切换；修改自动保存，现有配置自动保留。
 - **首次启动引导**：验证 DeepSeek API Key、选择模型、导入备份并设置主题色；已有配置的用户升级时跳过引导。
 - 思考强度支持关闭、`low`、`high` 与 `max`，两种请求协议均可使用。
 - **独立搜索与文件 API**：自定义地址、路径和加密密钥，或复用聊天密钥；兼容 DeepSeek Search / Fetch 与 Files 协议。
+- **逐对话记忆开关**：关闭某个会话的记忆后，它既不读取其他会话，也不会成为其他会话的记忆来源；首条消息发送前即可关闭。
 - **长文本文件传输**：启用文件 API 后，超过阈值的用户输入和文本附件上传一次并复用文件 ID，减少重复传输；本地保留原始消息。配置与限制见[工具 API 指南](docs/23-独立工具API与长文本文件传输.md)。
 - 消息树：以 `parentId` 组织。重新生成为会话内分支，切换版本时下游整段跟随，不删除历史；长按支持会话间分叉。
 - **上下文管理**：估算用量并在发送前检查预算。压缩保留最近的完整对话轮次，不改写本地原文。
@@ -73,6 +75,7 @@
 - 多选分享：按问答组选择消息，导出长截图、分页图片或 Markdown，也可复制文本或使用系统分享。图片保留表格和数学公式。
 - **置顶会话**：点击侧边栏「置顶」分组标题即可折叠或展开，关闭侧栏后仍保留展开状态。
 - 搜索：标题与正文全文搜索，结果行显示命中片段，可选择是否包含非当前分支。
+- **精细搜索与朗读控制**：搜索默认只查当前分支，可额外检索非活动分支和思考内容；朗读总开关关闭后停止播放并隐藏相关入口。
 - 长消息：超 10 行自动收起，展开后整条可点。
 - 设置：在“外观”中管理主题、主题色和字体大小，在“对话行为”中管理思考折叠和搜索范围。
 - 多语言：界面、提示词与导出模板中英双语，设置内切换（跟随系统 / 简体中文 / English）；排版按语种分档（中文两端对齐，西文左对齐）。
@@ -200,7 +203,7 @@ app/src/main/java/com/simplechat/app/
 
 ## 文档
 
-设计文档、实现记录与变更记录见 [`docs/README.md`](docs/README.md)，代码注释中的 `§` 编号对应这些文档。历史记录保留各版本的验证范围。当前版本为 **DeepSeek Plus 0.8**（构建号 44），合并改动见 [32 · 合并设计与动效](docs/32-DeepSeekPlus-0.8设计与实现.md)，逐版本变更见 [变更记录](docs/10-CHANGELOG.md)。
+设计文档、实现记录与变更记录见 [`docs/README.md`](docs/README.md)，代码注释中的 `§` 编号对应这些文档。历史记录保留各版本的验证范围。当前版本为 **DeepSeek Plus 0.9**（构建号 49），上游功能移植见 [33 · v1.2.4 功能移植](docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md)，逐版本变更见 [变更记录](docs/10-CHANGELOG.md)。
 
 相关入口：
 

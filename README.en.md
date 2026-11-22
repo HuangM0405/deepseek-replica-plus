@@ -1,17 +1,17 @@
 # DeepSeek Plus
 
-> An Android AI chat client built with Jetpack Compose, built on [Simple Chat](https://github.com/Pokanshuu/Simple-Chat) 1.2.3, with its visuals and interaction language informed by [DeepSeek App Replica](https://github.com/LiJiaHua1024/deepseek-app-replica).
+> An Android AI chat client built with Jetpack Compose, built on [Simple Chat](https://github.com/Pokanshuu/Simple-Chat) 1.2.4, with its visuals and interaction language informed by [DeepSeek App Replica](https://github.com/LiJiaHua1024/deepseek-app-replica).
 
 **[中文](README.md) | English**
 
-[![Version](https://img.shields.io/badge/version-0.8-blue)](https://github.com/HuangM0405/deepseek-replica-plus)
+[![Version](https://img.shields.io/badge/version-0.9-blue)](https://github.com/HuangM0405/deepseek-replica-plus)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## Introduction
 
 An Android AI chat client aimed at long-form, continuous creative writing. It talks to any OpenAI-compatible endpoint, stores everything locally, and has no accounts and no cloud sync.
 
-This repository is **DeepSeek Plus 0.8**: the features and architecture come from Simple Chat, while the motion, icon and several components follow the official client's look. The full change list, motion system and verification notes are in [`docs/32-DeepSeekPlus-0.8设计与实现.md`](docs/32-DeepSeekPlus-0.8设计与实现.md) (Chinese).
+This repository is **DeepSeek Plus 0.9**: the features and architecture follow Simple Chat 1.2.4, while the motion, whale icon and several components retain the DeepSeek Plus look. The feature port, database upgrade and deliberate exclusions are documented in [`docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md`](docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md) (Chinese).
 
 Good for:
 
@@ -54,7 +54,9 @@ Good for:
 - **Hold to speak**: press and hold the empty composer to record. Release to transcribe and send, or swipe up and release to cancel. Official DeepSeek connections use DeepSeek ASR for recordings up to 120 seconds. Other connections use the Android speech recognizer when available.
 - **Read aloud**: replies are spoken by the system TTS engine — no backend, no permission. Pick a voice (with preview) in Settings; code blocks and tables are stripped before reading.
 - **Automatic reading**: the speaker switch next to New chat reads newly completed replies using the selected voice. Turning it off stops playback immediately.
+- **In-conversation image generation**: use + → Generate image to create from a prompt, edit images with references, or let an explicitly image-oriented chat turn invoke the `generate_image` tool. Supports OpenAI Images, Gemini, Qwen/DashScope, native Responses image generation, aspect ratios, cancellation, retry, new variants and original-image saving.
 - **API profiles**: save independent URLs, models, protocols and encrypted keys; create, copy, rename, delete or switch profiles. Changes save automatically and existing settings are preserved.
+- **Per-conversation memory**: when disabled, a conversation neither reads memories from other chats nor supplies its own messages as memory to them. It can be disabled before the first message.
 - **First-run onboarding**: validate a DeepSeek API key, choose a model, import a backup, and set an accent color. Existing configured installs skip onboarding after upgrading.
 - Reasoning effort includes Off, `low`, `high`, and `max` for both request protocols.
 - Message tree organised by `parentId`. Regenerating creates an in-conversation branch; switching versions carries the downstream along instead of deleting history; long-press forks into a new conversation.
@@ -70,6 +72,7 @@ Good for:
 - Attachments support selecting multiple images or files. Items are imported in order, and a failed item does not remove successful imports.
 - **Pinned chats**: tap the Pinned header to collapse or expand the group. The sidebar keeps that state when closed and reopened.
 - Search: full-text over titles and bodies, with hit snippets and an option to include inactive branches.
+- **Fine-grained search and speech controls**: search checks only the active branch by default, with optional inactive-branch and reasoning search; the global read-aloud switch stops playback and hides related entry points.
 - Long messages: collapsed past 10 lines, whole message stays tappable once expanded.
 - Settings: Appearance groups theme, accent color, and font size. Conversation groups thinking-panel behavior and search scope.
 - Languages: interface, prompts and export templates in Chinese and English, switchable in settings (follow system / Simplified Chinese / English); typography is tiered per language (justified for Chinese, left-aligned for Western text).
@@ -199,7 +202,7 @@ app/src/main/java/com/simplechat/app/
 
 Design documents, implementation records and the changelog are indexed in [`docs/README.md`](docs/README.md). The `§` references in code comments point to these documents. Historical records describe each version and what was verified.
 
-The current version is **DeepSeek Plus 0.8** (build 44). Merged changes: [32 · merge design and motion](docs/32-DeepSeekPlus-0.8设计与实现.md); per-version notes: [changelog](docs/10-CHANGELOG.md).
+The current version is **DeepSeek Plus 0.9** (build 49). Upstream feature port: [33 · Simple Chat 1.2.4 port](docs/33-DeepSeekPlus-0.9-v1.2.4功能移植.md); per-version notes: [changelog](docs/10-CHANGELOG.md).
 
 - [`TODO.md`](TODO.md): current status and to-dos.
 
